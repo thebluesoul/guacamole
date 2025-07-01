@@ -1,0 +1,63 @@
+version: '3'
+services:
+  # MySQL for Keycloak
+  keycloak-db:
+    image: mysql:8.0
+    container_name: keycloak-db
+    environment:
+      MYSQL_ROOT_PASSWORD: keycloakroot
+      MYSQL_DATABASE: keycloak
+      MYSQL_USER: keycloak
+      MYSQL_PASSWORD: keycloak123
+    volumes:
+      - ./keycloak-db:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    restart: always
+
+  # Keycloak
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak
+    depends_on:
+      - keycloak-db
+    environment:
+      KC_DB: mysql
+      KC_DB_URL: jdbc:mysql://keycloak-db:3306/keycloak?useSSL=false&allowPublicKeyRetrieval=true
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak123
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin123
+      KC_HOSTNAME: localhost
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "8090:8080"
+    command: start-dev
+    restart: always
+
+  # Guacd
+  guacd:
+    image: guacamole/guacd:latest
+    container_name: guacd
+    restart: always
+
+  guacamole:
+    image: guacamole/guacamole:latest
+    container_name: guacamole
+    depends_on:
+      - guacd
+      - keycloak
+    environment:
+      GUACD_HOSTNAME: guacd
+      OPENID_ENABLED: "true"
+      OPENID_AUTHORIZATION_ENDPOINT: 'http://localhost:8090/realms/guav2/protocol/openid-connect/auth'
+      OPENID_JWKS_ENDPOINT: 'http://keycloak:8080/realms/guav2/protocol/openid-connect/certs'
+      OPENID_ISSUER: 'http://localhost:8090/realms/guav2'
+      OPENID_CLIENT_ID: 'guav2-client'
+      OPENID_REDIRECT_URI: 'http://localhost:8080/guacamole/'
+      OPENID_SCOPE: 'openid conditional-email profile'
+      EXTENSION_PRIORITY: "*, openid"
+    ports:
+      - "8080:8080"
+    restart: always
+
